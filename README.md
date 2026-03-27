@@ -1,2 +1,0 @@
-# Terakawa-Chinatown
-Web App
