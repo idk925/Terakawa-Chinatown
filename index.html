@@ -35,6 +35,9 @@ html, body {
   background: var(--charcoal); color: var(--cream);
   font-family: var(--font-body); font-weight: 300;
   -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 button { font-family: inherit; border: none; cursor: pointer; background: none; color: inherit; }
 a { color: inherit; text-decoration: none; }
@@ -785,6 +788,7 @@ const MENU_DATA = [
     { name: 'Spicy Ramen', desc: 'Pork, chicken and seafood broth with wavy egg noodle topped with roast pork charshu, kimchee, kikurage mushroom, bean sprout, scallion and seasoned boiled egg', price: 16.50, img: 'images/spicy-ramen.jpg' },
     { name: 'Veggie Ramen', desc: 'Vegetable broth (Shoyu or Miso base) with wavy egg noodle topped with cabbage, carrot, seasonal veggie, bamboo shoot, corn, kikurage mushroom, bean sprout, scallion, sesame seed and seasoned boiled egg', price: 16.50, img: 'images/veggie-ramen.jpg' },
     { name: 'Bibim Noodle', desc: 'Cold or warm wavy egg noodle tossed in spiced bean paste sauce topped with chicken, kimchee, kikurage mushroom, corn, cucumber, sesame seed and seasoned boiled egg', price: 16.50, img: 'images/bibim-noodle.jpg' },
+    { name: 'Hiyashi Chyuka', desc: 'Cold wavy egg noodle tossed in citrus sauce topped with roast pork charshu or chicken, cucumber, tomato, kikurage mushroom, bamboo shoot, red ginger and egg omelette', price: 16.50, img: 'images/hiyashi-chyuka.jpg' },
   ]},
   { cat: 'Udon', catJp: 'うどん', emoji: '🍲', items: [
     { name: 'Shrimp Tempura Udon', desc: 'Lightly battered shrimp tempura, poached egg, seasonal veggie, fish cake (kamaboko) and scallion', price: 15.50, img: 'images/shrimp-tempura-udon.jpg' },
@@ -1075,6 +1079,9 @@ function redeemReward(name, cost) {
 // ==================== INIT ====================
 renderMenu();
 updateBadge();
+
+// Disable long-press context menu (Site Settings popup)
+document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ==================== PWA ====================
 // Register Service Worker
