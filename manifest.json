@@ -2,7 +2,7 @@
   "name": "Terakawa Ramen",
   "short_name": "Terakawa",
   "description": "Authentic Japanese ramen from the Kumamoto region. Order, earn rewards, and find our locations.",
-  "start_url": "https://idk925.github.io/Terakawa-Chinatown/index.html",
+  "start_url": "https://idk925.github.io/Terakawa-Chinatown/main/index.html",
   "display": "standalone",
   "background_color": "#1a1a1a",
   "theme_color": "#1a1a1a",
