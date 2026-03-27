@@ -1,19 +1,9 @@
-const CACHE_NAME = 'terakawa-v1';
-const ASSETS = [
-  '/index.html',
-  '/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Sans:wght@300;400;500;600&display=swap'
-];
-
+const CACHE_NAME = 'terakawa-v2';
 const IMG_CACHE = 'terakawa-img-v1';
 
-// Install — cache core assets
+// Install — skip precaching absolute paths, cache on demand instead
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil(self.skipWaiting());
 });
 
 // Activate — clean old caches
