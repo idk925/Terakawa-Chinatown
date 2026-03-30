@@ -12,6 +12,9 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 /* === CSS VARIABLES & RESET === */
 :root {
@@ -517,6 +520,51 @@ body::before {
   font-size: 13px; color: var(--bone); opacity: 0.6;
   border: 1px solid rgba(245,240,232,0.06);
 }
+.auth-form { padding: 24px; max-width: 360px; margin: 0 auto; }
+.auth-form h3 {
+  font-family: var(--font-display); font-size: 22px; font-weight: 300;
+  text-align: center; margin-bottom: 6px;
+}
+.auth-form .auth-sub { font-size: 13px; color: var(--bone); text-align: center; margin-bottom: 20px; }
+.form-field {
+  margin-bottom: 14px;
+}
+.form-field label {
+  display: block; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--bone); margin-bottom: 6px;
+}
+.form-field input, .form-field select {
+  width: 100%; padding: 12px 14px; border-radius: 10px;
+  background: rgba(245,240,232,0.06); border: 1px solid rgba(245,240,232,0.1);
+  color: var(--cream); font-size: 15px; font-family: var(--font-body);
+  outline: none; -webkit-appearance: none;
+}
+.form-field input::placeholder { color: var(--bone); opacity: 0.4; }
+.form-field input:focus, .form-field select:focus { border-color: var(--gold); }
+.form-field select { color: var(--bone); }
+.form-field select option { background: var(--charcoal); color: var(--cream); }
+.auth-submit {
+  width: 100%; padding: 14px; border-radius: 10px; margin-top: 6px;
+  background: var(--gold); color: var(--charcoal);
+  font-size: 14px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.auth-submit:disabled { opacity: 0.4; }
+.auth-toggle {
+  text-align: center; margin-top: 16px; font-size: 13px; color: var(--bone);
+}
+.auth-toggle a {
+  color: var(--gold); text-decoration: none; cursor: pointer;
+}
+.user-greeting {
+  font-size: 14px; color: var(--bone); text-align: center; margin-bottom: 4px;
+}
+.user-greeting strong { color: var(--cream); }
+.birthday-badge {
+  display: inline-block; padding: 6px 16px; border-radius: 20px;
+  background: rgba(196,30,58,0.15); color: var(--red);
+  font-size: 12px; margin: 8px auto; border: 1px solid rgba(196,30,58,0.2);
+}
 
 /* === TOAST === */
 .toast {
@@ -641,6 +689,7 @@ body::before {
     <div id="page-menu" class="page">
       <div class="menu-header">
         <h1>Menu</h1>
+        <p>Dine-in prices shown. Pickup +$0.25 on select items.</p>
       </div>
       <div class="category-pills" id="categoryPills"></div>
       <div id="menuContent"></div>
@@ -695,7 +744,9 @@ body::before {
     <!-- REWARDS PAGE -->
     <div id="page-rewards" class="page">
       <div class="rewards-header"><h1>Rewards</h1></div>
-      <div id="rewardsContent"></div>
+      <div id="rewardsContent">
+        <div style="text-align:center;padding:60px 24px;color:var(--bone)">Loading...</div>
+      </div>
     </div>
     <!-- DELIVERY & PICKUP PAGE -->
     <div id="page-order" class="page">
@@ -732,6 +783,9 @@ body::before {
     <button class="tab-btn" data-page="order">
       <span class="tab-icon">🛵</span>Order
     </button>
+    <button class="tab-btn" data-page="rewards">
+      <span class="tab-icon">⭐</span>Rewards
+    </button>
   </nav>
 </div>
 
@@ -762,48 +816,48 @@ body::before {
 // ==================== DATA ====================
 const MENU_DATA = [
   { cat: 'Appetizers', catJp: '前菜', emoji: '🥟', items: [
-    { name: 'Seaweed Salad', desc: 'Marinated seaweed tossed with roasted sesame seed and sesame oil', price: 5.50, img: 'images/seaweed-salad.jpg' },
-    { name: 'Edamame', desc: 'Blanched soybean tossed with Japanese sea salt', price: 5.50, img: 'images/edamame.jpg' },
-    { name: 'Croquette', desc: 'Lightly breaded danshaku potato croquette served with tonkatsu sauce', price: 4, img: 'images/croquette.jpg' },
-    { name: 'Gyoza (5 pcs)', desc: 'Pork and vegetable dumpling with house special sauce (pan-fried or steamed)', price: 6, img: 'images/gyoza.jpg' },
-    { name: 'Charshu Onigiri', desc: 'Roast pork rice ball seasoned with sesame seed wrapped in nori, with spicy mayo', price: 4, img: 'images/charshu-onigiri.jpg' },
-    { name: 'Japanese Sausage', desc: 'Natural Heritage Berkshire pork sausage pan-fried served with spicy mayonnaise', price: 7, img: 'images/japanese-sausage.jpg' },
-    { name: 'Karaage Chicken', desc: 'Lightly battered boneless chicken marinated with fresh ginger juice, served with spicy mayonnaise', price: 7, img: 'images/karaage-chicken.jpg' },
-    { name: 'Tempura Shumai', desc: 'Crispy tempura battered shrimp shumai topped with lightly spiced bean paste sauce', price: 7, img: 'images/tempura-shumai.jpg' },
-    { name: 'Takoyaki (6 pcs)', desc: 'Japanese mountain-potato encrusted octopus topped with bonito flakes, Japanese mayo and barbecue sauce', price: 7, img: 'images/takoyaki.jpg' },
-    { name: 'Chicken Bun', desc: 'Pan-seared chicken topped with lettuce, tomato, cucumber and spicy mayo in a soft or crispy bun', price: 9, img: 'images/chicken-bun.jpg' },
-    { name: 'Pork Bun', desc: 'Slow roasted pork topped with lettuce, tomato, cucumber and spicy mayo in a soft or crispy bun', price: 9, img: 'images/pork-bun.jpg' },
+    { name: 'Seaweed Salad', desc: 'Marinated seaweed tossed with roasted sesame seed and sesame oil', price: 5.75, img: 'images/seaweed-salad.jpg' },
+    { name: 'Edamame', desc: 'Blanched soybean tossed with Japanese sea salt', price: 5.75, img: 'images/edamame.jpg' },
+    { name: 'Croquette', desc: 'Lightly breaded danshaku potato croquette served with tonkatsu sauce', price: 4.25, img: 'images/croquette.jpg' },
+    { name: 'Gyoza (5 pcs)', desc: 'Pork and vegetable dumpling with house special sauce (pan-fried or steamed)', price: 6.25, img: 'images/gyoza.jpg' },
+    { name: 'Charshu Onigiri', desc: 'Roast pork rice ball seasoned with sesame seed wrapped in nori, with spicy mayo', price: 4.25, img: 'images/charshu-onigiri.jpg' },
+    { name: 'Japanese Sausage', desc: 'Natural Heritage Berkshire pork sausage pan-fried served with spicy mayonnaise', price: 7.25, img: 'images/japanese-sausage.jpg' },
+    { name: 'Karaage Chicken', desc: 'Lightly battered boneless chicken marinated with fresh ginger juice, served with spicy mayonnaise', price: 7.25, img: 'images/karaage-chicken.jpg' },
+    { name: 'Tempura Shumai', desc: 'Crispy tempura battered shrimp shumai topped with lightly spiced bean paste sauce', price: 7.25, img: 'images/tempura-shumai.jpg' },
+    { name: 'Takoyaki (6 pcs)', desc: 'Japanese mountain-potato encrusted octopus topped with bonito flakes, Japanese mayo and barbecue sauce', price: 7.25, img: 'images/takoyaki.jpg' },
+    { name: 'Chicken Bun', desc: 'Pan-seared chicken topped with lettuce, tomato, cucumber and spicy mayo in a soft or crispy bun', price: 9.25, img: 'images/chicken-bun.jpg' },
+    { name: 'Pork Bun', desc: 'Slow roasted pork topped with lettuce, tomato, cucumber and spicy mayo in a soft or crispy bun', price: 9.25, img: 'images/pork-bun.jpg' },
   ]},
   { cat: 'Ramen', catJp: 'ラーメン', emoji: '🍜', items: [
-    { name: 'Terakawa ★', desc: 'Signature — Natural Heritage Berkshire Pork-bone soup (Tonkotsu) with thin straight noodle, roast pork charshu, bamboo shoot, kikurage mushroom, red ginger, scallion and seasoned boiled egg', price: 15, img: 'images/terakawa-ramen.jpg' },
-    { name: 'Mayu', desc: 'Tonkotsu with mayu oil (dark roasted leek with garlic oil) with thin straight noodle, roast pork charshu, bamboo shoot, kikurage mushroom, red ginger, scallion and seasoned boiled egg', price: 16, img: 'images/mayu-ramen.jpg' },
-    { name: 'Miso', desc: 'Pork and chicken broth with miso paste and wavy egg noodle topped with roast pork charshu, bamboo shoot, kikurage mushroom, bean sprout, sesame seed, scallion and seasoned boiled egg', price: 15, img: 'images/miso-ramen.jpg' },
-    { name: 'Shoyu', desc: 'Light soy sauce and chicken broth with wavy egg noodle topped with roast pork charshu or chicken, bamboo shoot, fish cake (naruto), scallion and seasoned boiled egg', price: 15, img: 'images/shoyu-ramen.jpg' },
-    { name: 'Tan Tan', desc: 'Mild spicy miso and chicken broth with sesame paste and wavy egg noodle topped with minced pork or minced chicken, bean sprout and scallion', price: 15, img: 'images/tan-tan-ramen.jpg' },
-    { name: 'Kyushu Danji', desc: 'Tonkotsu with mayu oil and dark-roasted leek with garlic oil with medium thick noodle topped with roast pork charshu, bamboo shoot, kikurage mushroom, cabbage, bean sprout, red ginger, scallion and seasoned boiled egg', price: 21, img: 'images/kyushu-danji.jpg' },
+    { name: 'Terakawa ★', desc: 'Signature — Natural Heritage Berkshire Pork-bone soup (Tonkotsu) with thin straight noodle, roast pork charshu, bamboo shoot, kikurage mushroom, red ginger, scallion and seasoned boiled egg', price: 15.50, img: 'images/terakawa-ramen.jpg' },
+    { name: 'Mayu', desc: 'Tonkotsu with mayu oil (dark roasted leek with garlic oil) with thin straight noodle, roast pork charshu, bamboo shoot, kikurage mushroom, red ginger, scallion and seasoned boiled egg', price: 16.50, img: 'images/mayu-ramen.jpg' },
+    { name: 'Miso', desc: 'Pork and chicken broth with miso paste and wavy egg noodle topped with roast pork charshu, bamboo shoot, kikurage mushroom, bean sprout, sesame seed, scallion and seasoned boiled egg', price: 15.50, img: 'images/miso-ramen.jpg' },
+    { name: 'Shoyu', desc: 'Light soy sauce and chicken broth with wavy egg noodle topped with roast pork charshu or chicken, bamboo shoot, fish cake (naruto), scallion and seasoned boiled egg', price: 15.50, img: 'images/shoyu-ramen.jpg' },
+    { name: 'Tan Tan', desc: 'Mild spicy miso and chicken broth with sesame paste and wavy egg noodle topped with minced pork or minced chicken, bean sprout and scallion', price: 15.50, img: 'images/tan-tan-ramen.jpg' },
+    { name: 'Kyushu Danji', desc: 'Tonkotsu with mayu oil and dark-roasted leek with garlic oil with medium thick noodle topped with roast pork charshu, bamboo shoot, kikurage mushroom, cabbage, bean sprout, red ginger, scallion and seasoned boiled egg', price: 21.50, img: 'images/kyushu-danji.jpg' },
   ]},
   { cat: 'Specialty Ramen', catJp: '特製ラーメン', emoji: '🌟', items: [
-    { name: 'Charshu Men', desc: 'Tonkotsu with thin straight noodle topped with roast pork charshu, red ginger, and scallion', price: 16, img: 'images/charshu-men.jpg' },
-    { name: 'Spicy Ramen', desc: 'Pork, chicken and seafood broth with wavy egg noodle topped with roast pork charshu, kimchee, kikurage mushroom, bean sprout, scallion and seasoned boiled egg', price: 16, img: 'images/spicy-ramen.jpg' },
-    { name: 'Veggie Ramen', desc: 'Vegetable broth (Shoyu or Miso base) with wavy egg noodle topped with cabbage, carrot, seasonal veggie, bamboo shoot, corn, kikurage mushroom, bean sprout, scallion, sesame seed and seasoned boiled egg', price: 16, img: 'images/veggie-ramen.jpg' },
-    { name: 'Bibim Noodle', desc: 'Cold or warm wavy egg noodle tossed in spiced bean paste sauce topped with chicken, kimchee, kikurage mushroom, corn, cucumber, sesame seed and seasoned boiled egg', price: 16, img: 'images/bibim-noodle.jpg' },
-    { name: 'Hiyashi Chyuka', desc: 'Cold wavy egg noodle tossed in citrus sauce topped with roast pork charshu or chicken, cucumber, tomato, kikurage mushroom, bamboo shoot, red ginger and egg omelette', price: 16, img: 'images/hiyashi-chyuka.jpg' },
+    { name: 'Charshu Men', desc: 'Tonkotsu with thin straight noodle topped with roast pork charshu, red ginger, and scallion', price: 16.50, img: 'images/charshu-men.jpg' },
+    { name: 'Spicy Ramen', desc: 'Pork, chicken and seafood broth with wavy egg noodle topped with roast pork charshu, kimchee, kikurage mushroom, bean sprout, scallion and seasoned boiled egg', price: 16.50, img: 'images/spicy-ramen.jpg' },
+    { name: 'Veggie Ramen', desc: 'Vegetable broth (Shoyu or Miso base) with wavy egg noodle topped with cabbage, carrot, seasonal veggie, bamboo shoot, corn, kikurage mushroom, bean sprout, scallion, sesame seed and seasoned boiled egg', price: 16.50, img: 'images/veggie-ramen.jpg' },
+    { name: 'Bibim Noodle', desc: 'Cold or warm wavy egg noodle tossed in spiced bean paste sauce topped with chicken, kimchee, kikurage mushroom, corn, cucumber, sesame seed and seasoned boiled egg', price: 16.50, img: 'images/bibim-noodle.jpg' },
+    { name: 'Hiyashi Chyuka', desc: 'Cold wavy egg noodle tossed in citrus sauce topped with roast pork charshu or chicken, cucumber, tomato, kikurage mushroom, bamboo shoot, red ginger and egg omelette', price: 16.50, img: 'images/hiyashi-chyuka.jpg' },
   ]},
   { cat: 'Udon', catJp: 'うどん', emoji: '🍲', items: [
-    { name: 'Shrimp Tempura Udon', desc: 'Lightly battered shrimp tempura, poached egg, seasonal veggie, fish cake (kamaboko) and scallion', price: 15, img: 'images/shrimp-tempura-udon.jpg' },
-    { name: 'Karaage Curry Udon', desc: 'Karaage chicken served with Japanese curry, seasonal veggie, fish cake (kamaboko) and scallion', price: 15, img: 'images/karaage-curry-udon.jpg' },
-    { name: 'Beef Udon', desc: 'Marinated sliced beef, caramelized onion, seasonal veggie, fish cake (kamaboko) and scallion', price: 16, img: 'images/beef-udon.jpg' },
-    { name: 'Charshu Udon', desc: 'Japanese roast pork, seasonal veggie, fish cake (kamaboko) and scallion', price: 15, img: 'images/charshu-udon.jpg' },
+    { name: 'Shrimp Tempura Udon', desc: 'Lightly battered shrimp tempura, poached egg, seasonal veggie, fish cake (kamaboko) and scallion', price: 15.50, img: 'images/shrimp-tempura-udon.jpg' },
+    { name: 'Karaage Curry Udon', desc: 'Karaage chicken served with Japanese curry, seasonal veggie, fish cake (kamaboko) and scallion', price: 15.50, img: 'images/karaage-curry-udon.jpg' },
+    { name: 'Beef Udon', desc: 'Marinated sliced beef, caramelized onion, seasonal veggie, fish cake (kamaboko) and scallion', price: 16.50, img: 'images/beef-udon.jpg' },
+    { name: 'Charshu Udon', desc: 'Japanese roast pork, seasonal veggie, fish cake (kamaboko) and scallion', price: 15.50, img: 'images/charshu-udon.jpg' },
   ]},
   { cat: 'Curry Platter', catJp: 'カレー', emoji: '🍛', items: [
-    { name: 'Karaage Chicken Curry', desc: 'Lightly battered boneless chicken marinated with fresh ginger juice, served with rice and salad with ginger dressing', price: 15, img: 'images/karaage-chicken-curry.jpg' },
-    { name: 'Pork Cutlet Curry', desc: 'Lightly breaded pork cutlet served with rice and salad with ginger dressing', price: 15, img: 'images/pork-cutlet-curry.jpg' },
-    { name: 'Chicken Cutlet Curry', desc: 'Lightly breaded chicken cutlet served with rice and salad with ginger dressing', price: 15, img: 'images/chicken-cutlet-curry.jpg' },
+    { name: 'Karaage Chicken Curry', desc: 'Lightly battered boneless chicken marinated with fresh ginger juice, served with rice and salad with ginger dressing', price: 15.50, img: 'images/karaage-chicken-curry.jpg' },
+    { name: 'Pork Cutlet Curry', desc: 'Lightly breaded pork cutlet served with rice and salad with ginger dressing', price: 15.50, img: 'images/pork-cutlet-curry.jpg' },
+    { name: 'Chicken Cutlet Curry', desc: 'Lightly breaded chicken cutlet served with rice and salad with ginger dressing', price: 15.50, img: 'images/chicken-cutlet-curry.jpg' },
   ]},
   { cat: 'Donburi', catJp: '丼物', emoji: '🍚', items: [
-    { name: 'Katsu Don', desc: 'Lightly breaded chicken or pork cutlet, egg, caramelized onion and scallion served over rice with sweet dashi sauce', price: 15, img: 'images/katsu-don.jpg' },
-    { name: 'Gyu Don', desc: 'Marinated sliced beef, caramelized onion, pickled ginger and seasoned boiled egg served over rice with sweet dashi sauce', price: 16, img: 'images/gyu-don.jpg' },
-    { name: 'Charshu Don', desc: 'Japanese roast pork belly (charshu), pickled radish and scallion served over rice with sweet dashi sauce', price: 15, img: 'images/charshu-don.jpg' },
+    { name: 'Katsu Don', desc: 'Lightly breaded chicken or pork cutlet, egg, caramelized onion and scallion served over rice with sweet dashi sauce', price: 15.50, img: 'images/katsu-don.jpg' },
+    { name: 'Gyu Don', desc: 'Marinated sliced beef, caramelized onion, pickled ginger and seasoned boiled egg served over rice with sweet dashi sauce', price: 16.50, img: 'images/gyu-don.jpg' },
+    { name: 'Charshu Don', desc: 'Japanese roast pork belly (charshu), pickled radish and scallion served over rice with sweet dashi sauce', price: 15.50, img: 'images/charshu-don.jpg' },
   ]},
   { cat: 'Beverages', catJp: '飲物', emoji: '🍵', items: [
     { name: 'Coke / Diet Coke / Sprite / Ginger Ale', desc: '', price: 3 },
@@ -837,7 +891,6 @@ const REWARDS = [
 
 // ==================== STATE ====================
 let cart = JSON.parse(localStorage.getItem('tk_cart') || '[]');
-let rewardsUser = JSON.parse(localStorage.getItem('tk_rewards') || 'null');
 let activeCat = 0;
 
 function saveCart() { localStorage.setItem('tk_cart', JSON.stringify(cart)); }
@@ -992,28 +1045,133 @@ document.getElementById('checkoutModal').addEventListener('click', function(e) {
   if (e.target === this) closeCheckout();
 });
 
+// ==================== FIREBASE INIT ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyAupCqnSQ1QNkg8uIYvuBf8rh0j-vl1QfY",
+  authDomain: "terakawa-ucity.firebaseapp.com",
+  projectId: "terakawa-ucity",
+  storageBucket: "terakawa-ucity.firebasestorage.app",
+  messagingSenderId: "607971307709",
+  appId: "1:607971307709:web:965515a94433d72dc707d4"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let fbUser = null;     // Firebase Auth user
+let memberData = null; // Firestore member data
+let authMode = 'login'; // 'login' or 'register'
+
+// Listen for auth state changes
+auth.onAuthStateChanged(async (user) => {
+  fbUser = user;
+  if (user) {
+    await loadMemberData();
+  } else {
+    memberData = null;
+  }
+  renderRewards();
+});
+
+async function loadMemberData() {
+  if (!fbUser) return;
+  try {
+    const doc = await db.collection('members').doc(fbUser.uid).get();
+    if (doc.exists) {
+      memberData = doc.data();
+    } else {
+      memberData = null;
+    }
+  } catch (err) {
+    console.error('Error loading member data:', err);
+    memberData = null;
+  }
+}
+
 // ==================== REWARDS RENDER ====================
 function renderRewards() {
   const el = document.getElementById('rewardsContent');
-  if (!rewardsUser) {
-    el.innerHTML = `<div class="rewards-signin">
-      <div class="signin-icon">⭐</div>
-      <h3>Join Terakawa Rewards</h3>
-      <p>Earn 1 point per $1 spent. Redeem for free appetizers, ramen & more.</p>
-      <div class="phone-input-wrap">
-        <input class="phone-input" id="phoneInput" type="tel" placeholder="Phone number" maxlength="14">
-        <button class="signin-btn" onclick="signIn()">Join</button>
-      </div>
-    </div>`;
+
+  // Not logged in — show login/register form
+  if (!fbUser) {
+    if (authMode === 'register') {
+      el.innerHTML = `<div class="auth-form">
+        <div style="text-align:center;font-size:48px;margin-bottom:12px;opacity:0.4">⭐</div>
+        <h3>Join Terakawa Rewards</h3>
+        <p class="auth-sub">Earn 1 point per $1 spent. Free food & birthday gifts!</p>
+        <div class="form-field">
+          <label>Full Name</label>
+          <input id="regName" type="text" placeholder="Your name">
+        </div>
+        <div class="form-field">
+          <label>Email</label>
+          <input id="regEmail" type="email" placeholder="your@email.com">
+        </div>
+        <div class="form-field">
+          <label>Password</label>
+          <input id="regPassword" type="password" placeholder="At least 6 characters">
+        </div>
+        <div class="form-field">
+          <label>Phone Number</label>
+          <input id="regPhone" type="tel" placeholder="(215) 555-1234">
+        </div>
+        <div class="form-field">
+          <label>Birthday</label>
+          <div style="display:flex;gap:10px">
+            <select id="regBdayMonth" style="flex:1">
+              <option value="">Month</option>
+              ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) =>
+                `<option value="${i+1}">${m}</option>`
+              ).join('')}
+            </select>
+            <select id="regBdayDay" style="flex:1">
+              <option value="">Day</option>
+              ${Array.from({length:31},(_,i) => `<option value="${i+1}">${i+1}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <button class="auth-submit" onclick="doRegister()">Create Account</button>
+        <div class="auth-toggle">Already have an account? <a onclick="authMode='login';renderRewards()">Sign In</a></div>
+      </div>`;
+    } else {
+      el.innerHTML = `<div class="auth-form">
+        <div style="text-align:center;font-size:48px;margin-bottom:12px;opacity:0.4">⭐</div>
+        <h3>Welcome Back</h3>
+        <p class="auth-sub">Sign in to view your rewards and points.</p>
+        <div class="form-field">
+          <label>Email</label>
+          <input id="loginEmail" type="email" placeholder="your@email.com">
+        </div>
+        <div class="form-field">
+          <label>Password</label>
+          <input id="loginPassword" type="password" placeholder="Password">
+        </div>
+        <button class="auth-submit" onclick="doLogin()">Sign In</button>
+        <div class="auth-toggle">New member? <a onclick="authMode='register';renderRewards()">Create Account</a></div>
+      </div>`;
+    }
     return;
   }
 
-  const pts = rewardsUser.points;
+  // Logged in but no member data yet (shouldn't normally happen)
+  if (!memberData) {
+    el.innerHTML = '<div style="text-align:center;padding:60px 24px;color:var(--bone)">Loading your rewards...</div>';
+    return;
+  }
+
+  const pts = memberData.points || 0;
   const tier = TIERS.find(t => pts >= t.min && pts <= t.max) || TIERS[0];
   const nextTier = TIERS[TIERS.indexOf(tier) + 1];
   const progress = nextTier ? ((pts - tier.min) / (nextTier.min - tier.min)) * 100 : 100;
+  const history = memberData.history || [];
+  const bMonth = memberData.birthdayMonth;
+  const now = new Date();
+  const isBirthdayMonth = bMonth && bMonth === (now.getMonth() + 1);
 
   el.innerHTML = `<div class="rewards-dashboard">
+    <div class="user-greeting">Welcome, <strong>${memberData.name || 'Member'}</strong></div>
+    ${isBirthdayMonth ? '<div style="text-align:center"><span class="birthday-badge">🎂 Happy Birthday Month!</span></div>' : ''}
+
     <div class="points-card">
       <div class="tier-badge ${tier.cls}">${tier.name}</div>
       <div class="points-number">${pts}</div>
@@ -1021,7 +1179,7 @@ function renderRewards() {
       ${nextTier ? `<div class="tier-progress">
         <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
         <div class="progress-text">${nextTier.min - pts} pts to ${nextTier.name}</div>
-      </div>` : `<div class="progress-text" style="margin-top:12px;text-align:center">You've reached the highest tier!</div>`}
+      </div>` : '<div class="progress-text" style="margin-top:12px;text-align:center">Highest tier reached!</div>'}
     </div>
 
     <div class="rewards-section-title">Redeem Rewards</div>
@@ -1042,37 +1200,99 @@ function renderRewards() {
 
     <div class="rewards-section-title">History</div>
     <div class="history-list">
-      ${rewardsUser.history.length === 0 ? '<p style="font-size:13px;color:var(--bone);opacity:0.5">No activity yet. Place an order to start earning!</p>' :
-        rewardsUser.history.map(h => `<div class="history-item">
+      ${history.length === 0 ? '<p style="font-size:13px;color:var(--bone);opacity:0.5">No activity yet. Visit us to start earning!</p>' :
+        history.slice(0, 20).map(h => `<div class="history-item">
           <div><div class="history-desc">${h.desc}</div><div class="history-date">${h.date}</div></div>
-          <div class="history-pts ${h.pts.startsWith('+') ? 'earned' : 'spent'}">${h.pts}</div>
+          <div class="history-pts ${h.pts > 0 ? 'earned' : 'spent'}">${h.pts > 0 ? '+' : ''}${h.pts}</div>
         </div>`).join('')
       }
     </div>
-    <button class="signout-btn" onclick="signOut()">Sign Out</button>
+    <button class="signout-btn" onclick="doSignOut()">Sign Out</button>
   </div>`;
 }
 
-function signIn() {
-  const phone = document.getElementById('phoneInput').value.trim();
-  if (phone.length < 7) { showToast('Please enter a valid phone number'); return; }
-  rewardsUser = { phone, points: 0, history: [] };
-  saveRewards(); renderRewards();
-  showToast('Welcome to Terakawa Rewards!');
+async function doRegister() {
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const phone = document.getElementById('regPhone').value.trim();
+  const bdayMonth = parseInt(document.getElementById('regBdayMonth').value) || null;
+  const bdayDay = parseInt(document.getElementById('regBdayDay').value) || null;
+
+  if (!name) { showToast('Please enter your name'); return; }
+  if (!email) { showToast('Please enter your email'); return; }
+  if (password.length < 6) { showToast('Password must be at least 6 characters'); return; }
+
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    // Create member document in Firestore
+    await db.collection('members').doc(cred.user.uid).set({
+      name: name,
+      email: email,
+      phone: phone,
+      birthdayMonth: bdayMonth,
+      birthdayDay: bdayDay,
+      points: 0,
+      history: [],
+      tier: 'Bronze',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      role: 'customer'
+    });
+    showToast('Welcome to Terakawa Rewards!');
+  } catch (err) {
+    if (err.code === 'auth/email-already-in-use') {
+      showToast('This email is already registered. Please sign in.');
+    } else if (err.code === 'auth/weak-password') {
+      showToast('Password must be at least 6 characters');
+    } else {
+      showToast('Error: ' + err.message);
+    }
+  }
 }
 
-function signOut() {
-  rewardsUser = null;
-  localStorage.removeItem('tk_rewards');
-  renderRewards();
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!email || !password) { showToast('Please fill in all fields'); return; }
+
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    showToast('Welcome back!');
+  } catch (err) {
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      showToast('Invalid email or password');
+    } else {
+      showToast('Error: ' + err.message);
+    }
+  }
 }
 
-function redeemReward(name, cost) {
-  if (rewardsUser.points < cost) return;
-  rewardsUser.points -= cost;
-  rewardsUser.history.unshift({ desc: 'Redeemed: ' + name, pts: '-' + cost, date: new Date().toLocaleDateString() });
-  saveRewards(); renderRewards();
-  showToast(`Redeemed: ${name}`);
+function doSignOut() {
+  auth.signOut();
+  showToast('Signed out');
+}
+
+async function redeemReward(name, cost) {
+  if (!fbUser || !memberData || memberData.points < cost) return;
+  try {
+    const ref = db.collection('members').doc(fbUser.uid);
+    const newPts = memberData.points - cost;
+    const historyEntry = { desc: 'Redeemed: ' + name, pts: -cost, date: new Date().toLocaleDateString() };
+    const updatedHistory = [historyEntry, ...(memberData.history || [])];
+    await ref.update({
+      points: newPts,
+      history: updatedHistory,
+      tier: TIERS.find(t => newPts >= t.min && newPts <= t.max)?.name || 'Bronze'
+    });
+    memberData.points = newPts;
+    memberData.history = updatedHistory;
+    renderRewards();
+    showToast('Redeemed: ' + name + ' — Show this to your server!');
+  } catch (err) {
+    showToast('Error redeeming reward');
+    console.error(err);
+  }
 }
 
 // ==================== INIT ====================

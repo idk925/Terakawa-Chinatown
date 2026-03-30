@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terakawa Admin</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root { --bg: #1a1a1a; --card: #2a2a2a; --cream: #f5f0e8; --gold: #d4a847; --red: #c41e3a; --bone: #bbb5a7; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--cream); font-family:'Segoe UI',sans-serif; padding:20px; max-width:800px; margin:0 auto; }
+h1 { font-size:24px; font-weight:300; margin-bottom:20px; color:var(--gold); }
+h2 { font-size:18px; font-weight:400; margin-bottom:14px; }
+.admin-login { max-width:360px; margin:80px auto; text-align:center; }
+.admin-login h1 { margin-bottom:30px; }
+input, select { width:100%; padding:12px; border-radius:8px; background:var(--card); border:1px solid rgba(255,255,255,0.1); color:var(--cream); font-size:14px; margin-bottom:12px; outline:none; }
+input:focus { border-color:var(--gold); }
+input::placeholder { color:var(--bone); opacity:0.5; }
+button { padding:12px 24px; border-radius:8px; border:none; cursor:pointer; font-size:14px; font-weight:600; }
+.btn-gold { background:var(--gold); color:var(--bg); width:100%; }
+.btn-red { background:var(--red); color:#fff; }
+.btn-sm { padding:8px 14px; font-size:12px; }
+.btn-outline { background:transparent; border:1px solid rgba(255,255,255,0.15); color:var(--bone); }
+.search-bar { display:flex; gap:10px; margin-bottom:20px; }
+.search-bar input { flex:1; margin-bottom:0; }
+.member-list { display:flex; flex-direction:column; gap:10px; }
+.member-card { padding:16px; border-radius:12px; background:var(--card); border:1px solid rgba(255,255,255,0.06); }
+.member-name { font-size:16px; font-weight:500; margin-bottom:4px; }
+.member-info { font-size:12px; color:var(--bone); margin-bottom:10px; line-height:1.6; }
+.member-points { font-size:28px; font-weight:300; color:var(--gold); }
+.member-tier { font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--bone); }
+.points-controls { display:flex; gap:8px; margin-top:12px; align-items:center; }
+.points-controls input { width:100px; margin:0; padding:8px; }
+.points-controls select { width:auto; margin:0; padding:8px; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:30px; }
+.stat-card { padding:16px; border-radius:12px; background:var(--card); text-align:center; }
+.stat-num { font-size:32px; font-weight:300; color:var(--gold); }
+.stat-label { font-size:11px; color:var(--bone); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+.hidden { display:none; }
+.toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px); padding:12px 24px; border-radius:8px; background:var(--card); color:var(--cream); font-size:13px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 4px 20px rgba(0,0,0,0.4); z-index:100; transition:transform 0.3s ease; }
+.toast.show { transform:translateX(-50%) translateY(0); }
+.birthday-list { margin-top:20px; }
+.bday-tag { display:inline-block; padding:3px 10px; border-radius:10px; background:rgba(196,30,58,0.15); color:var(--red); font-size:11px; margin-left:8px; }
+.tab-nav { display:flex; gap:4px; margin-bottom:24px; }
+.tab-nav button { flex:1; padding:10px; border-radius:8px; background:var(--card); color:var(--bone); border:1px solid transparent; }
+.tab-nav button.active { border-color:var(--gold); color:var(--gold); }
+.signout-link { display:block; text-align:center; margin-top:30px; color:var(--bone); font-size:13px; cursor:pointer; opacity:0.6; }
+</style>
+</head>
+<body>
+
+<div id="loginView" class="admin-login">
+  <h1>Terakawa Admin</h1>
+  <input id="adminEmail" type="email" placeholder="Admin email">
+  <input id="adminPass" type="password" placeholder="Password">
+  <button class="btn-gold" onclick="adminLogin()">Sign In</button>
+</div>
+
+<div id="adminView" class="hidden">
+  <h1>Terakawa Admin Panel</h1>
+
+  <div class="tab-nav">
+    <button class="active" onclick="showTab('members',this)">Members</button>
+    <button onclick="showTab('birthdays',this)">Birthdays</button>
+    <button onclick="showTab('stats',this)">Stats</button>
+  </div>
+
+  <div id="tab-members">
+    <div class="search-bar">
+      <input id="searchInput" type="text" placeholder="Search by name, email, or phone..." oninput="filterMembers()">
+    </div>
+    <div id="memberList" class="member-list"></div>
+  </div>
+
+  <div id="tab-birthdays" class="hidden">
+    <h2>This Month's Birthdays</h2>
+    <div id="birthdayList" class="member-list"></div>
+  </div>
+
+  <div id="tab-stats" class="hidden">
+    <div id="statsView" class="stats"></div>
+  </div>
+
+  <div class="signout-link" onclick="firebase.auth().signOut()">Sign Out</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAupCqnSQ1QNkg8uIYvuBf8rh0j-vl1QfY",
+  authDomain: "terakawa-ucity.firebaseapp.com",
+  projectId: "terakawa-ucity",
+  storageBucket: "terakawa-ucity.firebasestorage.app",
+  messagingSenderId: "607971307709",
+  appId: "1:607971307709:web:965515a94433d72dc707d4"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let allMembers = [];
+const TIERS = [
+  { name:'Bronze', min:0, max:99 },
+  { name:'Silver', min:100, max:299 },
+  { name:'Gold', min:300, max:599 },
+  { name:'Platinum', min:600, max:Infinity }
+];
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    // Check if user is admin
+    const doc = await db.collection('members').doc(user.uid).get();
+    if (doc.exists && doc.data().role === 'admin') {
+      document.getElementById('loginView').classList.add('hidden');
+      document.getElementById('adminView').classList.remove('hidden');
+      loadMembers();
+    } else {
+      toast('Access denied. Admin only.');
+      auth.signOut();
+    }
+  } else {
+    document.getElementById('loginView').classList.remove('hidden');
+    document.getElementById('adminView').classList.add('hidden');
+  }
+});
+
+async function adminLogin() {
+  const email = document.getElementById('adminEmail').value;
+  const pass = document.getElementById('adminPass').value;
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+  } catch(e) { toast('Invalid credentials'); }
+}
+
+async function loadMembers() {
+  const snap = await db.collection('members').orderBy('name').get();
+  allMembers = [];
+  snap.forEach(doc => allMembers.push({ id: doc.id, ...doc.data() }));
+  renderMembers(allMembers);
+  renderBirthdays();
+  renderStats();
+}
+
+function filterMembers() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  if (!q) { renderMembers(allMembers); return; }
+  const filtered = allMembers.filter(m =>
+    (m.name||'').toLowerCase().includes(q) ||
+    (m.email||'').toLowerCase().includes(q) ||
+    (m.phone||'').includes(q)
+  );
+  renderMembers(filtered);
+}
+
+function renderMembers(members) {
+  const el = document.getElementById('memberList');
+  if (members.length === 0) { el.innerHTML = '<p style="color:var(--bone);font-size:13px">No members found.</p>'; return; }
+  el.innerHTML = members.filter(m => m.role !== 'admin').map(m => {
+    const tier = TIERS.find(t => (m.points||0) >= t.min && (m.points||0) <= t.max) || TIERS[0];
+    const now = new Date();
+    const isBday = m.birthdayMonth === (now.getMonth()+1);
+    return `<div class="member-card">
+      <div class="member-name">${m.name || 'No Name'}${isBday ? '<span class="bday-tag">Birthday</span>' : ''}</div>
+      <div class="member-info">
+        ${m.email || ''}<br>
+        ${m.phone || 'No phone'}<br>
+        Birthday: ${m.birthdayMonth ? m.birthdayMonth + '/' + (m.birthdayDay||'?') : 'Not set'}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="member-points">${m.points || 0}</div>
+          <div class="member-tier">${tier.name}</div>
+        </div>
+        <div class="points-controls">
+          <input id="pts-${m.id}" type="number" placeholder="Points" min="1">
+          <button class="btn-sm btn-gold" onclick="addPoints('${m.id}')">+ Add</button>
+          <button class="btn-sm btn-outline" onclick="deductPoints('${m.id}')">- Deduct</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderBirthdays() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const bdays = allMembers.filter(m => m.birthdayMonth === month && m.role !== 'admin');
+  const el = document.getElementById('birthdayList');
+  if (bdays.length === 0) {
+    el.innerHTML = '<p style="color:var(--bone);font-size:13px">No birthdays this month.</p>';
+    return;
+  }
+  el.innerHTML = bdays.map(m => `<div class="member-card">
+    <div class="member-name">${m.name} <span class="bday-tag">Birthday ${m.birthdayMonth}/${m.birthdayDay||'?'}</span></div>
+    <div class="member-info">${m.email} | ${m.phone || 'No phone'}</div>
+    <div class="member-points">${m.points||0} pts</div>
+  </div>`).join('');
+}
+
+function renderStats() {
+  const customers = allMembers.filter(m => m.role !== 'admin');
+  const totalPts = customers.reduce((s,m) => s + (m.points||0), 0);
+  const tiers = {};
+  TIERS.forEach(t => tiers[t.name] = 0);
+  customers.forEach(m => {
+    const t = TIERS.find(t => (m.points||0) >= t.min && (m.points||0) <= t.max);
+    if (t) tiers[t.name]++;
+  });
+  const now = new Date();
+  const bdays = customers.filter(m => m.birthdayMonth === (now.getMonth()+1)).length;
+  document.getElementById('statsView').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${customers.length}</div><div class="stat-label">Total Members</div></div>
+    <div class="stat-card"><div class="stat-num">${totalPts}</div><div class="stat-label">Total Points</div></div>
+    <div class="stat-card"><div class="stat-num">${bdays}</div><div class="stat-label">Birthdays This Month</div></div>
+    <div class="stat-card"><div class="stat-num">${tiers.Platinum}</div><div class="stat-label">Platinum</div></div>
+    <div class="stat-card"><div class="stat-num">${tiers.Gold}</div><div class="stat-label">Gold</div></div>
+    <div class="stat-card"><div class="stat-num">${tiers.Silver}</div><div class="stat-label">Silver</div></div>
+  `;
+}
+
+async function addPoints(uid) {
+  const input = document.getElementById('pts-'+uid);
+  const pts = parseInt(input.value);
+  if (!pts || pts < 1) { toast('Enter a valid number'); return; }
+  try {
+    const ref = db.collection('members').doc(uid);
+    const doc = await ref.get();
+    const data = doc.data();
+    const newPts = (data.points||0) + pts;
+    const tier = TIERS.find(t => newPts >= t.min && newPts <= t.max)?.name || 'Bronze';
+    const entry = { desc: 'Points earned', pts: pts, date: new Date().toLocaleDateString() };
+    await ref.update({
+      points: newPts,
+      tier: tier,
+      history: [entry, ...(data.history||[])]
+    });
+    input.value = '';
+    toast(`Added ${pts} points to ${data.name}`);
+    loadMembers();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+async function deductPoints(uid) {
+  const input = document.getElementById('pts-'+uid);
+  const pts = parseInt(input.value);
+  if (!pts || pts < 1) { toast('Enter a valid number'); return; }
+  try {
+    const ref = db.collection('members').doc(uid);
+    const doc = await ref.get();
+    const data = doc.data();
+    const newPts = Math.max(0, (data.points||0) - pts);
+    const tier = TIERS.find(t => newPts >= t.min && newPts <= t.max)?.name || 'Bronze';
+    const entry = { desc: 'Points deducted', pts: -pts, date: new Date().toLocaleDateString() };
+    await ref.update({
+      points: newPts,
+      tier: tier,
+      history: [entry, ...(data.history||[])]
+    });
+    input.value = '';
+    toast(`Deducted ${pts} points from ${data.name}`);
+    loadMembers();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['members','birthdays','stats'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== name);
+  });
+}
+</script>
+</body>
+</html>
