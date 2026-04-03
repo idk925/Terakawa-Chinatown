@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terakawa POS — Staff Points</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root {
+  --bg: #111113; --surface: #1c1c1f; --surface2: #26262a;
+  --cream: #f5f0e8; --gold: #d4a847; --red: #c41e3a;
+  --green: #4ade80; --bone: #9e9a92; --border: rgba(255,255,255,0.08);
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  height:100%; background:var(--bg); color:var(--cream);
+  font-family:'DM Sans',sans-serif; font-weight:400;
+  -webkit-font-smoothing:antialiased;
+}
+button { font-family:inherit; border:none; cursor:pointer; background:none; color:inherit; }
+input { font-family:inherit; }
+
+#app { min-height:100%; display:flex; flex-direction:column; }
+
+/* === LOGIN === */
+.login-view {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:100vh; padding:40px 24px; text-align:center;
+}
+.login-view h1 { font-size:22px; font-weight:600; margin-bottom:6px; }
+.login-view .sub { font-size:13px; color:var(--bone); margin-bottom:32px; }
+.login-view .tag { display:inline-block; padding:4px 12px; border-radius:12px; background:rgba(212,168,71,0.15); color:var(--gold); font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; margin-bottom:20px; }
+.login-form { width:100%; max-width:320px; }
+.login-form input {
+  width:100%; padding:14px 16px; margin-bottom:12px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--border); color:var(--cream); font-size:15px; outline:none;
+}
+.login-form input::placeholder { color:var(--bone); opacity:0.5; }
+.login-form input:focus { border-color:var(--gold); }
+.login-form button {
+  width:100%; padding:14px; border-radius:10px; background:var(--gold); color:var(--bg);
+  font-size:14px; font-weight:600; letter-spacing:0.5px;
+}
+
+/* === POS MAIN === */
+.pos-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 20px; border-bottom:1px solid var(--border);
+}
+.pos-header h1 { font-size:16px; font-weight:600; }
+.pos-header .staff-name { font-size:12px; color:var(--bone); }
+.pos-header .signout { font-size:12px; color:var(--bone); opacity:0.6; padding:6px 12px; border-radius:6px; border:1px solid var(--border); }
+
+.pos-body { flex:1; padding:20px; max-width:600px; width:100%; margin:0 auto; }
+
+/* Search */
+.search-section { margin-bottom:24px; }
+.search-section label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--bone); margin-bottom:8px; }
+.search-row { display:flex; gap:10px; }
+.search-row input {
+  flex:1; padding:14px 16px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--border); color:var(--cream); font-size:16px; outline:none;
+}
+.search-row input::placeholder { color:var(--bone); opacity:0.4; }
+.search-row input:focus { border-color:var(--gold); }
+.search-row button {
+  padding:14px 20px; border-radius:10px; background:var(--gold); color:var(--bg);
+  font-size:14px; font-weight:600; white-space:nowrap;
+}
+
+/* QR Scan Button */
+.scan-btn {
+  padding:14px 16px; border-radius:10px; background:var(--surface);
+  border:1px solid var(--border); color:var(--cream);
+  font-size:14px; font-weight:600; white-space:nowrap;
+  display:flex; align-items:center; gap:8px;
+  transition: all 0.2s;
+}
+.scan-btn:active { background:var(--surface2); }
+.scan-btn svg { width:20px; height:20px; flex-shrink:0; }
+
+/* QR Scanner Overlay */
+.scanner-overlay {
+  position:fixed; inset:0; z-index:100; background:var(--bg);
+  display:flex; flex-direction:column;
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+.scanner-overlay.show { opacity:1; pointer-events:auto; }
+.scanner-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 20px; border-bottom:1px solid var(--border);
+}
+.scanner-header h2 { font-size:16px; font-weight:600; }
+.scanner-close {
+  padding:8px 16px; border-radius:8px; font-size:13px; font-weight:500;
+  color:var(--bone); border:1px solid var(--border);
+}
+.scanner-body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+#qr-reader { width:100%; max-width:400px; border-radius:16px; overflow:hidden; }
+#qr-reader video { border-radius:16px; }
+.scanner-hint {
+  margin-top:20px; font-size:13px; color:var(--bone); text-align:center; line-height:1.6;
+}
+/* Override html5-qrcode styles */
+#qr-reader__dashboard { padding:10px !important; }
+#qr-reader__dashboard button {
+  background:var(--gold) !important; color:var(--bg) !important;
+  border:none !important; border-radius:8px !important; padding:10px 20px !important;
+  font-family:'DM Sans',sans-serif !important; font-weight:600 !important;
+}
+#qr-reader__dashboard select {
+  background:var(--surface) !important; color:var(--cream) !important;
+  border:1px solid var(--border) !important; border-radius:6px !important;
+  padding:6px 10px !important;
+}
+#qr-reader__dashboard span { color:var(--bone) !important; }
+#qr-reader__header_message { display:none !important; }
+
+/* Customer Card */
+.customer-card {
+  padding:24px; border-radius:16px; background:var(--surface); border:1px solid var(--border);
+  margin-bottom:24px; animation:fadeUp 0.3s ease;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+.customer-card .cname { font-size:20px; font-weight:600; margin-bottom:2px; }
+.customer-card .cinfo { font-size:13px; color:var(--bone); line-height:1.6; margin-bottom:14px; }
+.customer-card .cstats { display:flex; gap:16px; }
+.cstat { text-align:center; flex:1; padding:12px; border-radius:10px; background:var(--surface2); }
+.cstat .cval { font-size:28px; font-weight:300; color:var(--gold); }
+.cstat .clbl { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--bone); margin-top:2px; }
+.bday-tag { display:inline-block; padding:3px 10px; border-radius:10px; background:rgba(196,30,58,0.15); color:var(--red); font-size:11px; margin-left:8px; }
+.scanned-tag { display:inline-block; padding:3px 10px; border-radius:10px; background:rgba(74,222,128,0.15); color:var(--green); font-size:11px; margin-left:8px; }
+
+/* Amount Input */
+.amount-section { margin-bottom:24px; }
+.amount-section label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--bone); margin-bottom:8px; }
+.amount-display { display:flex; align-items:center; gap:12px; }
+.amount-display input {
+  flex:1; padding:16px; border-radius:12px; background:var(--surface); border:1px solid var(--border);
+  color:var(--gold); font-size:32px; font-weight:300; text-align:center; outline:none;
+}
+.amount-display input:focus { border-color:var(--gold); }
+.amount-display input::placeholder { color:var(--bone); opacity:0.3; }
+.pts-preview { text-align:center; margin-top:10px; font-size:14px; color:var(--bone); }
+.pts-preview strong { color:var(--green); font-weight:600; }
+
+/* Submit */
+.submit-btn {
+  width:100%; padding:18px; border-radius:12px;
+  background:var(--green); color:#111;
+  font-size:16px; font-weight:700; letter-spacing:0.5px;
+  transition:all 0.2s;
+}
+.submit-btn:disabled { opacity:0.3; cursor:not-allowed; }
+.submit-btn:active:not(:disabled) { transform:scale(0.98); }
+
+/* Success overlay */
+.success-overlay {
+  position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.85);
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+.success-overlay.show { opacity:1; pointer-events:auto; }
+.success-box {
+  text-align:center; padding:40px; background:var(--surface); border-radius:24px;
+  border:1px solid var(--border); max-width:360px; width:90%;
+  transform:scale(0.9); transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+.success-overlay.show .success-box { transform:scale(1); }
+.success-icon { font-size:64px; margin-bottom:16px; }
+.success-box h2 { font-size:22px; font-weight:600; margin-bottom:8px; }
+.success-box p { font-size:14px; color:var(--bone); line-height:1.6; margin-bottom:24px; }
+.success-box button {
+  padding:14px 32px; border-radius:10px; background:var(--gold); color:var(--bg);
+  font-size:14px; font-weight:600;
+}
+
+/* No result */
+.no-result { text-align:center; padding:40px 20px; color:var(--bone); font-size:14px; }
+
+/* Toast */
+.toast {
+  position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px);
+  padding:12px 24px; border-radius:10px; background:var(--surface2); color:var(--cream);
+  font-size:13px; border:1px solid var(--border); box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  z-index:200; transition:transform 0.3s ease; white-space:nowrap;
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+
+/* Recent transactions */
+.recent-section { margin-top:32px; border-top:1px solid var(--border); padding-top:20px; }
+.recent-section h3 { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--bone); margin-bottom:12px; }
+.recent-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 12px; border-radius:8px; background:var(--surface); margin-bottom:6px;
+  font-size:13px;
+}
+.recent-item .rpts { color:var(--green); font-weight:600; }
+.recent-item .rtime { color:var(--bone); font-size:11px; }
+
+/* Responsive */
+@media (min-width:768px) {
+  .pos-body { max-width:640px; padding:32px; }
+  .customer-card { padding:32px; }
+  .cstat .cval { font-size:32px; }
+}
+@media (min-width:1024px) {
+  .pos-header { padding:16px 40px; }
+  .pos-body { max-width:700px; padding:40px; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<!-- QR Scanner Overlay -->
+<div class="scanner-overlay" id="scannerOverlay">
+  <div class="scanner-header">
+    <h2>Scan Customer QR</h2>
+    <button class="scanner-close" onclick="closeScanner()">Cancel</button>
+  </div>
+  <div class="scanner-body">
+    <div id="qr-reader"></div>
+    <div class="scanner-hint">Point camera at customer's QR code<br>from the Terakawa Loyalty app</div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAupCqnSQ1QNkg8uIYvuBf8rh0j-vl1QfY",
+  authDomain: "terakawa-ucity.firebaseapp.com",
+  projectId: "terakawa-ucity",
+  storageBucket: "terakawa-ucity.firebasestorage.app",
+  messagingSenderId: "607971307709",
+  appId: "1:607971307709:web:965515a94433d72dc707d4"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const TIERS = [
+  { name:'Bronze', min:0, max:99 },
+  { name:'Silver', min:100, max:299 },
+  { name:'Gold', min:300, max:599 },
+  { name:'Platinum', min:600, max:Infinity }
+];
+
+let currentCustomer = null;
+let recentTxns = JSON.parse(sessionStorage.getItem('pos_recent') || '[]');
+let html5QrCode = null;
+let scannerActive = false;
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ==================== AUTH ====================
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    const doc = await db.collection('members').doc(user.uid).get();
+    if (doc.exists && doc.data().role === 'admin') {
+      renderPOS(doc.data().name || user.email);
+    } else {
+      toast('Access denied. Admin/staff only.');
+      auth.signOut();
+    }
+  } else {
+    renderLogin();
+  }
+});
+
+function renderLogin() {
+  document.getElementById('app').innerHTML = `
+    <div class="login-view">
+      <div class="tag">Staff Only</div>
+      <h1>Terakawa POS</h1>
+      <p class="sub">Sign in to manage customer points</p>
+      <div class="login-form">
+        <input id="loginEmail" type="email" placeholder="Staff email">
+        <input id="loginPass" type="password" placeholder="Password">
+        <button onclick="doLogin()">Sign In</button>
+      </div>
+    </div>`;
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if (!email || !pass) { toast('Enter email and password'); return; }
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+  } catch(e) { toast('Invalid credentials'); }
+}
+
+// ==================== POS MAIN ====================
+function renderPOS(staffName) {
+  document.getElementById('app').innerHTML = `
+    <div class="pos-header">
+      <div>
+        <h1>Terakawa POS</h1>
+        <div class="staff-name">Staff: ${staffName}</div>
+      </div>
+      <button class="signout" onclick="auth.signOut()">Sign Out</button>
+    </div>
+    <div class="pos-body">
+      <div class="search-section">
+        <label>Find Customer</label>
+        <div class="search-row">
+          <input id="searchInput" type="text" placeholder="Phone, email, or name..." autofocus
+            onkeydown="if(event.key==='Enter')searchCustomer()">
+          <button onclick="searchCustomer()">Search</button>
+          <button class="scan-btn" onclick="openScanner()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M3 7V5a2 2 0 012-2h2"/>
+              <path d="M17 3h2a2 2 0 012 2v2"/>
+              <path d="M21 17v2a2 2 0 01-2 2h-2"/>
+              <path d="M7 21H5a2 2 0 01-2-2v-2"/>
+              <rect x="7" y="7" width="10" height="10" rx="1"/>
+            </svg>
+            Scan
+          </button>
+        </div>
+      </div>
+      <div id="customerArea"></div>
+      <div id="amountArea"></div>
+      <div id="recentArea"></div>
+    </div>`;
+  renderRecent();
+}
+
+// ==================== QR SCANNER ====================
+function openScanner() {
+  const overlay = document.getElementById('scannerOverlay');
+  overlay.classList.add('show');
+
+  if (!html5QrCode) {
+    html5QrCode = new Html5Qrcode("qr-reader");
+  }
+
+  // Stop any existing scan first
+  const startScan = () => {
+    scannerActive = true;
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      onScanSuccess,
+      () => {} // ignore errors during scanning
+    ).catch(err => {
+      console.error('Camera error:', err);
+      toast('Could not access camera. Check permissions.');
+      closeScanner();
+    });
+  };
+
+  if (scannerActive) {
+    html5QrCode.stop().then(startScan).catch(startScan);
+  } else {
+    startScan();
+  }
+}
+
+function closeScanner() {
+  const overlay = document.getElementById('scannerOverlay');
+  overlay.classList.remove('show');
+  if (html5QrCode && scannerActive) {
+    html5QrCode.stop().then(() => { scannerActive = false; }).catch(() => { scannerActive = false; });
+  }
+}
+
+async function onScanSuccess(decodedText) {
+  // Stop scanner immediately
+  if (html5QrCode && scannerActive) {
+    try { await html5QrCode.stop(); } catch(e) {}
+    scannerActive = false;
+  }
+  closeScanner();
+
+  // The QR code contains the Firebase UID
+  const uid = decodedText.trim();
+  if (!uid) { toast('Invalid QR code'); return; }
+
+  const area = document.getElementById('customerArea');
+  area.innerHTML = '<div class="no-result">Looking up member...</div>';
+  document.getElementById('amountArea').innerHTML = '';
+  currentCustomer = null;
+
+  try {
+    const doc = await db.collection('members').doc(uid).get();
+    if (!doc.exists || doc.data().role === 'admin') {
+      area.innerHTML = '<div class="no-result">Member not found. The QR code may be invalid.</div>';
+      return;
+    }
+
+    currentCustomer = { id: doc.id, ...doc.data(), scanned: true };
+    renderCustomerCard(currentCustomer);
+    renderAmountInput();
+    toast('Customer found via QR scan');
+  } catch(e) {
+    area.innerHTML = '<div class="no-result">Error looking up member. Try again.</div>';
+    console.error(e);
+  }
+}
+
+// ==================== SEARCH ====================
+async function searchCustomer() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!q) { toast('Enter a search term'); return; }
+
+  const area = document.getElementById('customerArea');
+  area.innerHTML = '<div class="no-result">Searching...</div>';
+  document.getElementById('amountArea').innerHTML = '';
+  currentCustomer = null;
+
+  try {
+    const snap = await db.collection('members').orderBy('name').get();
+    let found = null;
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (d.role === 'admin') return;
+      const match =
+        (d.phone || '').replace(/\D/g,'').includes(q.replace(/\D/g,'')) ||
+        (d.email || '').toLowerCase().includes(q) ||
+        (d.name || '').toLowerCase().includes(q);
+      if (match && !found) found = { id: doc.id, ...d };
+    });
+
+    if (!found) {
+      area.innerHTML = '<div class="no-result">No customer found. Check the phone, email, or name and try again.</div>';
+      return;
+    }
+
+    currentCustomer = found;
+    renderCustomerCard(found);
+    renderAmountInput();
+  } catch(e) {
+    area.innerHTML = '<div class="no-result">Error searching. Try again.</div>';
+    console.error(e);
+  }
+}
+
+function renderCustomerCard(c) {
+  const pts = c.points || 0;
+  const tier = TIERS.find(t => pts >= t.min && pts <= t.max) || TIERS[0];
+  const now = new Date();
+  const isBday = c.birthdayMonth === (now.getMonth()+1);
+
+  document.getElementById('customerArea').innerHTML = `
+    <div class="customer-card">
+      <div class="cname">${c.name || 'No Name'}${isBday ? '<span class="bday-tag">Birthday!</span>' : ''}${c.scanned ? '<span class="scanned-tag">QR Scanned</span>' : ''}</div>
+      <div class="cinfo">
+        ${c.email || 'No email'} &middot; ${c.phone || 'No phone'}<br>
+        Member since ${c.createdAt ? new Date(c.createdAt.seconds*1000).toLocaleDateString() : 'N/A'}
+      </div>
+      <div class="cstats">
+        <div class="cstat"><div class="cval">${pts}</div><div class="clbl">Points</div></div>
+        <div class="cstat"><div class="cval">${tier.name}</div><div class="clbl">Tier</div></div>
+      </div>
+    </div>`;
+}
+
+function renderAmountInput() {
+  document.getElementById('amountArea').innerHTML = `
+    <div class="amount-section">
+      <label>Bill Amount ($)</label>
+      <div class="amount-display">
+        <input id="billAmount" type="number" step="0.01" min="0" placeholder="0.00"
+          oninput="updatePreview()" onkeydown="if(event.key==='Enter')submitPoints()">
+      </div>
+      <div class="pts-preview" id="ptsPreview">Enter the bill total to calculate points</div>
+    </div>
+    <button class="submit-btn" id="submitBtn" disabled onclick="submitPoints()">Add Points</button>`;
+  document.getElementById('billAmount').focus();
+}
+
+function updatePreview() {
+  const val = parseFloat(document.getElementById('billAmount').value) || 0;
+  const pts = Math.floor(val);
+  const el = document.getElementById('ptsPreview');
+  const btn = document.getElementById('submitBtn');
+  if (val > 0) {
+    el.innerHTML = `Customer earns <strong>+${pts} point${pts!==1?'s':''}</strong>`;
+    btn.disabled = false;
+  } else {
+    el.textContent = 'Enter the bill total to calculate points';
+    btn.disabled = true;
+  }
+}
+
+async function submitPoints() {
+  if (!currentCustomer) return;
+  const val = parseFloat(document.getElementById('billAmount').value) || 0;
+  const pts = Math.floor(val);
+  if (pts < 1) { toast('Enter a valid bill amount'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  try {
+    const ref = db.collection('members').doc(currentCustomer.id);
+    const doc = await ref.get();
+    const data = doc.data();
+    const newPts = (data.points||0) + pts;
+    const tier = TIERS.find(t => newPts >= t.min && newPts <= t.max)?.name || 'Bronze';
+    const entry = { desc: `Spent $${val.toFixed(2)}`, pts: pts, date: new Date().toLocaleDateString() };
+
+    await ref.update({
+      points: newPts,
+      tier: tier,
+      history: [entry, ...(data.history||[])]
+    });
+
+    // Save to recent
+    recentTxns.unshift({
+      name: currentCustomer.name || 'Customer',
+      pts: pts,
+      amount: val,
+      time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+    });
+    if (recentTxns.length > 20) recentTxns = recentTxns.slice(0,20);
+    sessionStorage.setItem('pos_recent', JSON.stringify(recentTxns));
+
+    // Show success
+    showSuccess(currentCustomer.name, pts, newPts, tier);
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Add Points';
+  }
+}
+
+function showSuccess(name, pts, newTotal, tier) {
+  const overlay = document.createElement('div');
+  overlay.className = 'success-overlay show';
+  overlay.innerHTML = `
+    <div class="success-box">
+      <div class="success-icon">&#10003;</div>
+      <h2>Points Added!</h2>
+      <p><strong>+${pts} points</strong> added to ${name}.<br>New balance: <strong>${newTotal} pts</strong> (${tier})</p>
+      <button onclick="closeSuccess(this)">Done</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeSuccess(btn) {
+  const overlay = btn.closest('.success-overlay');
+  overlay.classList.remove('show');
+  setTimeout(() => overlay.remove(), 300);
+  // Reset form
+  currentCustomer = null;
+  document.getElementById('customerArea').innerHTML = '';
+  document.getElementById('amountArea').innerHTML = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchInput').focus();
+  renderRecent();
+}
+
+function renderRecent() {
+  const area = document.getElementById('recentArea');
+  if (!area || recentTxns.length === 0) { if(area) area.innerHTML=''; return; }
+  area.innerHTML = `
+    <div class="recent-section">
+      <h3>Recent Transactions</h3>
+      ${recentTxns.slice(0,10).map(t => `
+        <div class="recent-item">
+          <span>${t.name} &middot; $${t.amount.toFixed(2)}</span>
+          <span><span class="rpts">+${t.pts}</span> <span class="rtime">${t.time}</span></span>
+        </div>`).join('')}
+    </div>`;
+}
+</script>
+</body>
+</html>
